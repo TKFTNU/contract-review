@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.parsed.json
+.streamlit/secrets.toml
+.env
+
+# 数据资产：合成合同数据集与检索索引（可由 scripts/ 再生成/重建）
+data/generated_contracts/
+data/legal_index/
+data/samr_templates/
+
+# IDE / 工具
+.codebuddy/
+*.log

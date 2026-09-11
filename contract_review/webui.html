@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>合同条款切分</title>
+<style>
+:root{
+  --bg:#f4f7fc; --card:#ffffff; --line:#e4e9f2; --ink:#16233a; --muted:#6b7a90;
+  --primary:#4f6ef7; --primary-soft:#eef2ff; --ok:#12a150; --ok-soft:#e9f9f0;
+  --warn:#c2761a; --warn-soft:#fdf4e6; --danger:#d64545; --radius:14px;
+  --shadow:0 1px 2px rgba(23,43,77,.05), 0 8px 24px rgba(23,43,77,.06);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.65 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+input[type=file]{display:none}
+
+/* ---------- header ---------- */
+header{
+  position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line);
+}
+.bar{max-width:1240px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:.2px}
+.brand .mark{
+  width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#4f6ef7,#7c8cf8);color:#fff;font-size:15px;
+}
+.file{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;min-width:0}
+.file b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+.spacer{flex:1}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;
+  border:1px solid var(--line);background:#fff;font-weight:600;font-size:13px;
+  transition:.15s border-color,.15s background,.15s box-shadow;
+}
+.btn:hover{border-color:#c4cee0;background:#fbfcff}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(79,110,247,.28)}
+.btn.primary:hover{background:#4361e8}
+.btn.ghost{border-color:transparent;background:var(--primary-soft);color:var(--primary)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+
+/* ---------- layout ---------- */
+main{max-width:1240px;margin:0 auto;padding:22px 24px 64px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.stat .k{color:var(--muted);font-size:12px;letter-spacing:.3px}
+.stat .v{font-size:24px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:12px;font-weight:500;color:var(--muted);margin-left:4px}
+
+.notice{
+  display:none;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;
+  border:1px solid transparent;
+}
+.notice.show{display:block}
+.notice.info{background:var(--primary-soft);border-color:#d6deff;color:#33409a}
+.notice.ok{background:var(--ok-soft);border-color:#c7ecd7;color:#0d7a3d}
+.notice.err{background:#fdeeee;border-color:#f6d3d3;color:#a92c2c}
+.notice.warn{background:var(--warn-soft);border-color:#f3e0c0;color:#8a5a12}
+.notice b{font-weight:700}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+.tab{
+  padding:10px 14px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;
+  white-space:nowrap;font-size:13px;
+}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.panel{display:none}
+.panel.active{display:block}
+
+/* ---------- clause tree ---------- */
+.clause{
+  background:var(--card);border:1px solid var(--line);border-radius:12px;
+  margin-left:calc(var(--indent) * 22px);margin-bottom:8px;box-shadow:var(--shadow);
+  transition:.15s border-color;
+}
+.clause:hover{border-color:#cfd8ea}
+.clause>summary{
+  list-style:none;display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;
+}
+.clause>summary::-webkit-details-marker{display:none}
+.tag{
+  flex:none;padding:2px 8px;border-radius:7px;background:var(--primary-soft);color:var(--primary);
+  font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;
+}
+.tag.plain{background:#eef1f6;color:#5b6a80}
+.clause .title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clause .lvl{margin-left:auto;flex:none;color:var(--muted);font-size:12px}
+.clause .body{
+  margin:0;padding:0 14px 14px;color:#33415c;white-space:pre-wrap;word-break:break-word;
+  border-top:1px dashed #eaeef6;padding-top:12px;
+}
+.clause .src{padding:0 14px 12px;color:var(--muted);font-size:12px}
+
+/* ---------- tables / blocks ---------- */
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);font-size:13px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid #eef1f7}
+th{background:#f8fafd;color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.mono{font-variant-numeric:tabular-nums}
+.yes{color:var(--warn);font-weight:600}
+.no{color:var(--muted)}
+
+.block{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow)}
+.block .h{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:12px;margin-bottom:6px;flex-wrap:wrap}
+.block .h b{color:var(--ink);font-size:13px}
+.block pre{margin:0;white-space:pre-wrap;word-break:break-word;color:#33415c;font:inherit}
+.block .raw{margin-top:8px;padding-top:8px;border-top:1px dashed #eaeef6;color:var(--muted);font-size:12px}
+.block .src-clause{
+  margin-top:8px;padding:9px 12px;background:#f7f9fd;border:1px solid #e6ecf7;
+  border-left:3px solid var(--primary);border-radius:8px;color:#33415c;
+  font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;
+}
+.block .src-clause .cap{
+  display:block;color:var(--muted);font-size:12px;font-weight:600;margin-bottom:4px;
+}
+.block .src-clause mark{background:#fff3c4;color:inherit;padding:0 1px;border-radius:2px}
+
+pre.json{
+  background:#101728;color:#d7e0f5;border-radius:12px;padding:16px;overflow:auto;
+  max-height:64vh;font:12.5px/1.6 ui-monospace,Consolas,monospace;
+}
+.empty{color:var(--muted);text-align:center;padding:40px 0}
+
+.spin{
+  width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+  border-radius:50%;animation:sp .7s linear infinite;
+}
+@keyframes sp{to{transform:rotate(360deg)}}
+.filters{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.filters input[type=text]{
+  flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;
+  font:inherit;background:#fff;
+}
+label.chk{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="brand"><span class="mark">§</span>合同条款切分</div>
+    <div class="file">当前文档：<b id="fileName">—</b></div>
+    <div class="spacer"></div>
+    <div class="actions">
+      <button class="btn primary" id="uploadBtn">上传合同</button>
+      <input type="file" id="fileInput" accept=".docx,.pdf,.txt">
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="stats" id="stats"></div>
+  <div class="notice" id="notice"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="clauses">条款树</button>
+    <button class="tab" data-tab="review">综合审查</button>
+  </div>
+
+  <section class="panel active" id="panel-clauses">
+    <div class="filters">
+      <input type="text" id="clauseQuery" placeholder="筛选条款：输入编号、标题或正文关键词">
+    </div>
+    <div id="clauseList"></div>
+  </section>
+
+  <section class="panel" id="panel-review">
+    <div class="filters">
+      <button class="btn primary" id="reviewBtn">运行综合审查</button>
+      <label class="chk">
+        <input type="checkbox" id="preLlm">
+        审查前用 LLM 精切分（失败自动回退规则切分）
+      </label>
+      <label class="chk">
+        <input type="checkbox" id="reviewLlm" checked>
+        启用模型（关闭则仅保守保留疑点）
+      </label>
+      <button class="btn ghost" id="downloadBtn">下载审查报告</button>
+      <span style="color:var(--muted);font-size:13px">
+        统一图：合同理解 → 要素抽取 + 逐条/跨条款审查（并行）→ 风险合并 →
+        法条检索与适用 → LLM 裁判 → 冲突仲裁 → 统一融合；输出整体合理性结论、
+        逐条风险（含《法名》第X条引用与交叉印证标记）、仲裁记录与人工复核队列。
+        通常需要 120~180 秒（勾选精切分额外 10~30 秒）。
+      </span>
+    </div>
+    <div id="reviewView"></div>
+  </section>
+</main>
+
+<script>
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const state = { docId: null, result: null, summary: null, review: null };
+const $ = (id) => document.getElementById(id);
+
+function notice(kind, html) {
+  const n = $('notice');
+  n.className = 'notice show ' + kind;
+  n.innerHTML = html;
+}
+function hideNotice() { $('notice').className = 'notice'; }
+
+function setBusy(busy, text) {
+  $('uploadBtn').disabled = busy;
+  if (busy && text) notice('info', text + '……');
+}
+
+/* ---------------- render ---------------- */
+function renderStats(result, summary) {
+  const s = result.stats;
+  const cards = [
+    ['字符数', s.characters.toLocaleString()],
+    ['原文区块', s.blocks],
+    ['识别条款', s.clauses],
+    ['待复核边界', s.review_boundaries],
+    ['PDF页数', s.pages || '—'],
+  ];
+  let html = cards.map(([k, v]) =>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  if (summary) {
+    html += `<div class="stat" style="grid-column:span 2">
+      <div class="k">规则基线 → 模型结果</div>
+      <div class="v" style="color:var(--primary)">${summary.rule_clauses}
+        <small>→ ${summary.llm_clauses} 条条款</small></div>
+      <div class="k" style="margin-top:2px">耗时 ${summary.elapsed}s · 批次 ${summary.succeeded_batches}/${summary.batches}</div>
+    </div>`;
+  }
+  $('stats').innerHTML = html;
+}
+
+function renderClauses() {
+  const q = $('clauseQuery').value.trim().toLowerCase();
+  const clauses = (state.result?.clauses || []).filter(c =>
+    !q || c.label.toLowerCase().includes(q) || c.title.toLowerCase().includes(q)
+    || c.text.toLowerCase().includes(q));
+  if (!clauses.length) { $('clauseList').innerHTML = '<div class="empty">没有匹配的条款</div>'; return; }
+  $('clauseList').innerHTML = clauses.map(c => {
+    const indent = Math.max(0, (c.level || 1) - 1);
+    const page = c.page_start ? ` · 第${c.page_start}页` : '';
+    const parent = c.parent_id ? ` · 父 ${c.parent_id}` : '';
+    return `<details class="clause" style="--indent:${indent}">
+      <summary>
+        <span class="tag${c.label === '前言' || c.label === '标题' || c.label === '未编号' ? ' plain' : ''}">${esc(c.label)}</span>
+        <span class="title">${esc(c.title || c.heading || '（无标题）')}</span>
+        <span class="lvl">L${c.level} · ${c.block_ids.length}区块${page}${parent}</span>
+      </summary>
+      <p class="body">${esc(c.body || c.text)}</p>
+      <div class="src">来源区块：${c.block_ids.map(esc).join('、')}</div>
+    </details>`;
+  }).join('');
+}
+
+function renderAll() {
+  if (!state.result) return;
+  renderStats(state.result, state.summary);
+  renderClauses();
+}
+
+/* ---------------- api ---------------- */
+async function post(path, body, isForm) {
+  const options = { method: 'POST' };
+  if (isForm) { options.body = body; }
+  else {
+    options.headers = { 'Content-Type': 'application/json' };
+    options.body = JSON.stringify(body || {});
+  }
+  const res = await fetch(path, options);
+  const data = await res.json().catch(() => ({ error: '服务返回了非JSON响应' }));
+  if (!res.ok) throw new Error(data.error || ('请求失败 HTTP ' + res.status));
+  return data;
+}
+
+function applyResult(data, summary) {
+  state.docId = data.doc_id ?? state.docId;
+  state.result = data.result;
+  state.summary = summary || null;
+  state.review = null;
+  $('fileName').textContent = data.filename || '—';
+  renderAll();
+}
+
+async function runUnifiedReview() {
+  if (!state.docId) return;
+  const button = $('reviewBtn');
+  button.disabled = true;
+  button.innerHTML = '<span class="spin"></span>审查中';
+  try {
+    if ($('preLlm').checked) {
+      notice('info', '正在用 LLM 精切分（10~30 秒），随后进入综合审查……');
+      await refineSplitWithLlm();
+    }
+    notice('info', '综合审查进行中：理解 → 要素抽取 + 双路审查（并行）→ 合并 → 法条检索 → 裁判 → 仲裁 → 融合，通常需要 120~180 秒……');
+    const data = await post('/api/review', {
+      doc_id: state.docId,
+      enable_llm: $('reviewLlm').checked,
+    });
+    state.review = data.report;
+    renderUnifiedReview();
+    const s = data.report.stats;
+    const overall = data.report.overall || {};
+    const label = { low_risk: '低风险', medium_risk: '中风险', high_risk: '高风险', unknown: '未判定' };
+    const loops = s.loops || {};
+    notice(
+      (overall.overall_assessment === 'low_risk') ? 'ok' : 'warn',
+      `综合审查完成：整体 <b>${label[overall.overall_assessment] || '—'}</b>` +
+      (overall.overall_score != null ? `（合理性 ${overall.overall_score}/100）` : '') +
+      `，风险 <b>${s.final_risks}</b> 条（交叉印证 ${s.cross_validated || 0}），` +
+      `待人工复核 <b>${s.review_required}</b>，耗时 ${s.elapsed_seconds}s。<br>` +
+      `回环：检索 ${loops.legal_retries || 0} · 裁判 ${loops.judge_retries || 0} · 证据 ${loops.evidence_rounds || 0} · 仲裁 ${loops.arbitration_rounds || 0}` +
+      (data.report.errors && data.report.errors.length
+        ? '<br>警告：' + data.report.errors.map(esc).join('；') : '')
+    );
+  } catch (e) {
+    notice('err', '综合审查失败：' + esc(e.message));
+  } finally {
+    button.disabled = false;
+    button.textContent = '运行综合审查';
+  }
+}
+
+function clauseExcerpts(clauseIds, evidence) {
+  // Join risks back to the on-screen clause tree and print the original
+  // wording; the model's evidence snippet is highlighted inside it.
+  const clauses = state.result?.clauses || [];
+  const needles = (evidence || []).map(esc).filter(Boolean);
+  return (clauseIds || []).map(cid => {
+    const clause = clauses.find(c => c.clause_id === cid);
+    if (!clause) {
+      return `<div class="src-clause"><span class="cap">合同原文 · ${esc(cid)}（未在当前条款树中找到）</span></div>`;
+    }
+    const head = [clause.label, clause.title].filter(Boolean).join(' ');
+    const page = clause.page_start ? ` · 第${clause.page_start}页` : '';
+    let body = esc(clause.text);
+    for (const needle of needles) {
+      if (body.includes(needle)) {
+        body = body.split(needle).join(`<mark>${needle}</mark>`);
+        break;
+      }
+    }
+    return `<div class="src-clause"><span class="cap">合同原文 · ${esc(cid)}${head ? ' ' + esc(head) : ''}${page}</span>${body}</div>`;
+  }).join('');
+}
+
+function renderUnifiedReview() {
+  const view = $('reviewView');
+  const report = state.review;
+  if (!report || report.schema_version !== 'm6') {
+    view.innerHTML = '<div class="empty">尚未运行综合审查</div>';
+    return;
+  }
+  const overall = report.overall || {};
+  const risks = report.risks || [];
+  const queue = report.review_queue || [];
+  const conflicts = report.conflicts || [];
+  const understanding = report.understanding || {};
+  const elements = report.elements || {};
+  const signals = report.element_signals || [];
+  const overallColor = {
+    low_risk: 'var(--ok, #2e9e5b)', medium_risk: 'var(--warn)', high_risk: 'var(--danger)'
+  }[overall.overall_assessment] || 'var(--muted)';
+  const overallLabel = {
+    low_risk: '低风险', medium_risk: '中风险', high_risk: '高风险', unknown: '未判定'
+  }[overall.overall_assessment] || '—';
+  const sevColor = { high: 'var(--danger)', medium: 'var(--warn)', low: 'var(--muted)' };
+  const elemNames = { parties: '当事人', amounts: '金额', dates: '日期', subjects: '标的' };
+  const elemSummary = Object.entries(elemNames)
+    .map(([key, name]) => `${name} ${(elements[key] || []).length}`).join(' · ');
+
+  const head = `
+    <div class="block">
+      <div class="h">
+        <b style="color:${overallColor};font-size:15px">整体：${overallLabel}</b>
+        ${overall.overall_score != null
+          ? `<b>合理性 ${overall.overall_score}/100</b>` : ''}
+        <span>合同类型：${esc(understanding.contract_type || '未识别')}</span>
+      </div>
+      <pre>${esc(overall.summary || '')}</pre>
+      <div class="raw">要素概览：${elemSummary}${signals.length ? ' ｜ 要素信号 ' + signals.length + ' 条' : ''}</div>
+    </div>`;
+  const riskHtml = risks.map(r => `
+    <div class="block">
+      <div class="h">
+        <b style="color:${sevColor[r.severity] || 'inherit'}">[${esc(r.severity)}]</b>
+        <b>${esc(r.code)}</b>
+        <span>${esc(r.category_label || r.category || '')} · 来源 ${esc((r.agent_sources || []).join('+'))} · 置信度 ${r.confidence}</span>
+        ${r.cross_validated ? '<b style="color:var(--ok, #2e9e5b)">✓ 已交叉印证</b>' : ''}
+        ${r.review_required ? '<b style="color:var(--warn)">● 待人工复核</b>' : ''}
+      </div>
+      <pre>${esc(r.message)}</pre>
+      ${clauseExcerpts(r.clause_ids, r.evidence)}
+      ${(r.citations || []).length
+        ? `<div class="raw">法条依据：${r.citations.map(c =>
+            `《${esc(c.law_name)}》${esc(c.article_no)}${c.quote ? '「' + esc(c.quote) + '」' : ''}`
+          ).join(' ｜ ')}</div>` : ''}
+      <div class="raw">涉及条款：${(r.clause_ids || []).map(esc).join('、') || '—'}${r.rationale ? ' ｜ ' + esc(r.rationale) : ''}</div>
+    </div>`).join('');
+  const conflictsHtml = conflicts.length
+    ? `<div class="block"><div class="h"><b>仲裁记录（${conflicts.length}）</b></div>
+        <div class="raw">${conflicts.map(c =>
+          `[${esc(c.type)}] ${esc(c.description)}${c.resolution ? '（意见：' + esc(c.resolution) + '）' : ''}`
+        ).join('<br>')}</div></div>`
+    : '';
+  const queueHtml = queue.length
+    ? `<div class="block"><div class="h"><b>人工复核队列（${queue.length}）</b></div>
+        ${queue.map(q => `
+          <div class="raw">${esc(q.risk_id)} ${esc(q.code)}：${esc(q.reason)}</div>
+          ${q.clause_id ? clauseExcerpts([q.clause_id], []) : ''}
+        `).join('')}</div>`
+    : '';
+  view.innerHTML = head + (riskHtml || '<div class="empty">未发现风险</div>')
+    + conflictsHtml + queueHtml;
+}
+
+async function loadSample() {
+  try {
+    setBusy(true, '加载样例');
+    const data = await post('/api/sample');
+    applyResult(data);
+    notice('info', '已载入内置样例合同《技术开发（委托）合同》，可直接运行综合审查。');
+  } catch (e) { notice('err', '样例加载失败：' + esc(e.message)); }
+  finally { setBusy(false); }
+}
+
+async function refineSplitWithLlm() {
+  // 审查前的可选步骤：用 LLM 精切分替换当前条款树，失败时保留规则切分继续。
+  try {
+    const data = await post('/api/split', { doc_id: state.docId });
+    applyResult(data, data.summary);
+    const s = data.summary;
+    notice('ok', `LLM 精切分完成：规则基线 <b>${s.rule_clauses}</b> 条 → ` +
+      `模型识别 <b>${s.llm_clauses}</b> 条，耗时 ${s.elapsed}s，` +
+      `批次 ${s.succeeded_batches}/${s.batches} 成功。` +
+      (s.errors && s.errors.length
+        ? '<br>警告：' + s.errors.map(esc).join('；') : ''));
+    return true;
+  } catch (e) {
+    notice('warn', 'LLM 精切分失败，将基于规则切分继续审查：' + esc(e.message));
+    return false;
+  }
+}
+
+async function uploadFile(file, attempt) {
+  const form = new FormData();
+  form.append('contract', file);
+  try {
+    setBusy(true, '解析中');
+    const data = await post('/api/upload', form, true);
+    applyResult(data);
+    notice('info', `已上传 <b>${esc(data.filename)}</b>，规则切分得到 ` +
+      `<b>${data.result.clauses.length}</b> 条条款。可直接运行综合审查。`);
+  } catch (e) {
+    // A stale keep-alive connection can reset the first request right after
+    // a page reload; retry network failures once before surfacing the error.
+    if (!attempt && e instanceof TypeError) return uploadFile(file, 1);
+    notice('err', '上传解析失败：' + esc(e.message));
+  }
+  finally { setBusy(false); }
+}
+
+/* ---------------- events ---------------- */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.panel').forEach(p =>
+      p.classList.toggle('active', p.id === 'panel-' + tab.dataset.tab));
+  };
+});
+$('reviewBtn').onclick = runUnifiedReview;
+$('uploadBtn').onclick = () => $('fileInput').click();
+$('fileInput').onchange = (e) => { if (e.target.files[0]) uploadFile(e.target.files[0]); };
+$('clauseQuery').oninput = renderClauses;
+$('downloadBtn').onclick = () => {
+  if (!state.review) { notice('warn', '请先在「综合审查」页运行审查，再下载报告。'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(state.review, null, 2)],
+    { type: 'application/json' }));
+  a.download = (($('fileName').textContent || 'contract')
+    .replace(/\.(docx|pdf|txt)$/i, '') + '.review.json');
+  a.click(); URL.revokeObjectURL(a.href);
+};
+
+loadSample();
+</script>
+</body>
+</html>
