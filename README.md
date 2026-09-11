@@ -8,7 +8,7 @@
 - 规则 + LLM 双引擎条款切分，带结构自校验与自动纠错回流；
 - 统一数据契约（条款树 + 要素槽位 + 来源追踪）；
 - 五个审查 Agent 组成的 LangGraph 统一图：理解 → 逐条/跨条款审查（并行）→ 法条检索与适用 → LLM 裁判 → 冲突仲裁 → 统一融合；
-- 314 条法条的法律知识库 + 混合检索（BGE-M3 向量 + BM25），结论带《法名》第X条引用；
+- 整部《民法典》1260 条法条的法律知识库 + 混合检索（BGE-M3 向量 + BM25），结论带《法名》第X条引用；
 - 整体合理性结论（风险等级 + 0-100 评分 + 概述）与人工复核队列。
 
 **里程碑进度**
@@ -213,13 +213,9 @@
 
 ## 五、法律知识库与检索（M5）
 
-### 法条库（`data/法条结构化数据.jsonl`，314 条）
+### 法条库（`data/法条结构化数据.jsonl`，1260 条）
 
-| 来源 | 条数 |
-|---|---|
-| 《中华人民共和国民法典》合同编相关 | 272 |
-| 最高法商品房买卖合同司法解释 | 25 |
-| 最高法城镇房屋租赁合同司法解释 | 17 |
+整部《中华人民共和国民法典》（第 1-1260 条）：含总则编效力条款（143-157）、合同编通则与典型合同（463-647 / 703-734 / 888-903 / 919-936 / 961-966）、人格权编个人信息条款（1032-1039）等；272 条带精选 `risk_tags` 强标签（由旧精选库合并），全部条文带 `contract_types`。
 
 每条字段：`article_uid / law_name / article_no / content / authority_level / jurisdiction / effective_from / effective_to / status / contract_types / risk_tags / source_url / version_id`。
 
@@ -233,17 +229,17 @@
 查询 → dense + bm25 双路 prefetch → Qdrant Query API RRF 融合 → top-k
 ```
 
-**索引构建**（法条更新后执行一次）：
+**索引构建**（法条更新后执行一次，`--input` 可指定其它 JSONL）：
 
 ```powershell
-python scripts/build_legal_index.py   # 输出：载入 314 条 → 词表 → 向量 → 写入索引
+python scripts/build_legal_index.py   # 输出：载入 1260 条 → 词表 → 向量 → 写入索引
 ```
 
 **召回率评测**（强/弱两级金标准，27 类风险按 issue_code 独立查询）：
 
 ```powershell
 python scripts/eval_legal_retrieval.py --top-k 5
-# 强金标准（法条直接对应风险）：Recall@5=0.567，MRR=0.900
+# 强金标准（法条直接对应风险）：Recall@5=0.600，MRR=0.806
 ```
 
 **关键设计**：检索默认**不做 contract_types 硬过滤**——元数据标注覆盖不全，硬过滤会漏掉跨类型法条（如 597 条"无处分权"标注为买卖专用，但租赁标的无权属同样适用）。
@@ -302,7 +298,7 @@ retrieval_before_storage
 ### 环境要求
 
 - Windows（已在 Python 3.13 + PowerShell 验证）/ Linux / macOS
-- 虚拟环境 `.venv` 已包含全部依赖（qdrant-client、langgraph、streamlit、PyMuPDF）
+- 虚拟环境 `.venv` 已包含全部运行依赖（qdrant-client、langgraph、streamlit、PyMuPDF）；`python-docx` / `reportlab` 仅在重新生成合成数据集时需要
 - 两个本地模型服务（地址与模型名在 `.env` 中配置，默认如下）：
   - **LM Studio**：`http://localhost:12345`，模型 `qwen3.8-27b-nvfp4-mtp`（审查用）
   - **Ollama**：`http://localhost:11434`，模型 `bge-m3`（检索向量用）
@@ -335,14 +331,11 @@ Get-NetTCPConnection -LocalPort 8601 -State Listen | ForEach-Object { Stop-Proce
 
 ### Web 单页（`web_server.py` + `webui.html`）
 
-打开即自动载入内置样例合同并完成规则切分，页面能力：
+极简动线：**上传 →（可选 LLM 精切分）→ 运行综合审查 → 查看报告/下载**。打开即自动载入内置样例合同并完成规则切分：
 
-- **条款树**：按层级缩进，关键词筛选，逐条展开看正文与来源区块；
-- **边界决策**：可只看待复核；显示关系/置信度/判断来源/证据；
-- **原文区块**：全部原子区块与页码；
-- **统一结构（M2）**：schema/合同ID/要素槽位状态；「抽取要素（M3）」按钮单独跑要素抽取（快，数秒）；
-- **综合审查（M6）**：整体合理性结论（等级+评分+概述）、要素概览、逐条风险（类别/法条引用/交叉印证标记/裁判理由）、仲裁记录、人工复核队列；
-- **结构化 JSON** 预览与下载；支持拖拽上传 DOCX / PDF / TXT。
+- **条款树**（默认页）：按层级缩进，关键词筛选，逐条展开看正文与来源区块；
+- **综合审查（M6）**：整体合理性结论（等级+评分+概述）、要素概览、逐条风险（类别/法条引用/原文高亮/交叉印证标记/裁判理由）、仲裁记录、人工复核队列；面板内提供「审查前用 LLM 精切分」开关（失败自动回退规则切分）与「下载审查报告」按钮（完整 M6 JSON）；
+- 支持上传 DOCX / PDF / TXT；技术调试视图（边界决策、原文区块、M2 结构、结构化 JSON）已精简移除，对应后端 API 全部保留。
 
 ### HTTP API 参考
 
@@ -437,16 +430,17 @@ l:/contract/
 │   ├── service.py                  解析编排入口 parse_contract / build_contract
 │   └── cli.py                      命令行入口
 ├── scripts/
-│   ├── build_legal_index.py        法条索引构建（314 条 → Qdrant local）
+│   ├── build_legal_index.py        法条索引构建（--input 任意 JSONL → Qdrant local）
 │   ├── eval_legal_retrieval.py     检索召回率评测（强/弱金标准，Recall@k + MRR）
+│   ├── merge_statute_tags.py       法条标注合并工具（旧精选标签并入全量库）
 │   └── generate_*.py               合成数据集生成脚本（三类模板）
-├── checks/                         88 个校验用例（unittest，全离线可跑）
+├── checks/                         103 个校验用例（unittest，全离线可跑）
 ├── data/
-│   ├── 法条结构化数据.jsonl         314 条法条
-│   ├── generated_contracts/        50 份合成合同（DOCX+PDF+manifest 标注）
-│   └── legal_index/                Qdrant 本地索引（构建产物）
-├── samples/                        演示样例合同
-└── .review_challengecup/           比赛申请材料
+│   ├── 法条结构化数据.jsonl         整部民法典 1260 条（含标注合并）
+│   ├── 法律法规条文汇编（房屋买卖租赁委托中介保管）.txt   法条原始汇编（溯源用）
+│   ├── generated_contracts/        50 份合成合同（DOCX+PDF+manifest，不入库）
+│   └── legal_index/                Qdrant 本地索引（构建产物，不入库）
+└── samples/                        演示样例合同
 ```
 
 ---
@@ -471,7 +465,7 @@ l:/contract/
 ## 十一、校验用例（`checks/`）
 
 ```powershell
-.venv\Scripts\python.exe -m unittest discover -s checks -p "check_*.py" -v   # 88 个用例
+.venv\Scripts\python.exe -m unittest discover -s checks -p "check_*.py" -v   # 103 个用例
 ```
 
 | 校验文件 | 覆盖 |
@@ -506,8 +500,8 @@ l:/contract/
 
 **审查层**
 
-- 法条库覆盖 5 类合同的核心条文（314 条），未覆盖全部房地产监管规则；
-- 检索强金标准 Recall@5=0.567（`unverified_property` 等跨类型引用仍是难点），MRR=0.900；
+- 法条库为整部《民法典》（1260 条）；两部司法解释（商品房买卖 / 城镇房屋租赁）暂未入库，相关精裁判规则（违约金调整基数、预售许可细则等）暂缺；
+- 检索强金标准 Recall@5=0.600、MRR=0.806（全量库干扰条目稀释了个别排序；`unverified_property` 在司法解释缺席时仍是难点）；
 - 零租金等极端条款若模型未报出，仅以 `element_signal` 形式进入复核队列（不会作为风险结论）；
 - 模型服务离线时审查降级为保守保留，不产生实质判定。
 
@@ -519,8 +513,8 @@ l:/contract/
 
 ## 十三、常见问题
 
-**Q：跑审查需要先手动运行「统一结构（M2）」页签吗？**
-不需要。运行综合审查时，M2 构建与 M3 要素抽取都在统一图内部自动完成；「统一结构（M2）」页签是独立的调试/查看工具。
+**Q：跑审查需要先做切分或要素抽取吗？**
+不需要。上传后综合审查在统一图内部自动完成 M2 构建与 M3 要素抽取；勾选「审查前用 LLM 精切分」会先做语义切分（失败自动回退规则切分）。
 
 **Q：端口不是 8600？**
 Windows 系统常占用 8600，服务会自动顺延（8601、8602…），以控制台输出为准。
